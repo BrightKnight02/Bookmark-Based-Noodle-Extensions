@@ -1,0 +1,1 @@
+Ok, basically I'm trying something out. I have ideas for making a general script for making noodle extensions maps. What I'm trying to do is use bookmarks the open and close a section for notes to be modified with certain animations and such. I don't have any experience with noodle before starting this project, so I have no idea if this is either useful or possible.
