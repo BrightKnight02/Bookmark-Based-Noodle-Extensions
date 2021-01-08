@@ -11,7 +11,7 @@ class Environment():
     lasers = None
     
 class PanicEnvironment(Environment):
-    rightLights = 30
+    ringLights = 30
 
 
 # Functions ------------------------------------------------------------------
@@ -73,14 +73,13 @@ def genFloats(lower, upper, step):
 
 #a more general function. if you want to wipe a range of notes, events, or 
 #obstacles. notation /wipeRange end(beats) array(_notes, _events, _obstacles)
+#I might make this more specific in the future. Like wipe just one event lane
 def wipeRange(lower, upper, array):
     toYeet = [] #I'm very mature
     for x in range(len(array)):
         if (array[x]['_time'] <= upper and array[x]['_time'] >= lower):
-            print(x)
             toYeet.append(x)
-    print(range(len(toYeet), 0, -1))
-    for x in range(len(toYeet), 0, -1):
+    for x in range(len(toYeet) - 1, 0, -1):
         array.pop(toYeet[x])
         
 def createNote(time, lineIndex, lineLayer, typ, cut, custom = None):
@@ -117,13 +116,85 @@ def addNoteOnBeats(data):
 def ringShimmer(data):
     start = data[0]
     stop = float(data[1]) + start
+    r = float(data[2])
+    g = float(data[3])
+    b = float(data[4])
+    decrease = float(data[5])
     precision = 1 / float(data[6])
+    env = strToClass(data[7])
     wipeRange(start, stop, diff['_events'])
+    timeToggle = True
     for time in genFloats(start, stop, precision):
-        print("hi ", time)
-    
-    
-
+        if timeToggle:
+            lower = True
+            timeToggle = False
+        else: 
+            lower = False
+            timeToggle = True
+        for prop in range(env.ringLights):
+            if (lower):
+                custom = {"_color" : [r * decrease, g * decrease, b * decrease], "_propID" : prop}
+                lower = False
+            else:
+                custom = {"_color" : [r , g, b], "_propID" : prop}
+                lower = True
+            event = createLight(time, 1, 1, custom)
+            if event not in diff['_events']:
+                diff['_events'].append(event)
+                
+#Creates a "shimmer" effect that transistions from one color to another
+#event syntax: /gradRingShimmer duration(beats) r1 g1 b1 a1 r2 g2 b2 a2 decrease(decimal) 1/precision environment
+def gradRingShimmer(data):
+    start = data[0]
+    stop = float(data[1]) + start
+    r1 = float(data[2])
+    g1 = float(data[3])
+    b1 = float(data[4])
+    a1 = float(data[5])
+    r2 = float(data[6])
+    g2 = float(data[7])
+    b2 = float(data[8])
+    a2 = float(data[9])   
+    decrease = float(data[10])
+    precision = 1 / float(data[11])
+    env = strToClass(data[12])
+    wipeRange(start, stop, diff['_events'])
+    timeToggle = True
+    numEvents = (stop - start) / precision
+    r = r1
+    g = g1
+    b = b1
+    a = a1
+    dr = (r2 - r1) / numEvents
+    dg = (g2 - g1) / numEvents
+    db = (b2 - b1) / numEvents
+    da = (a2 - a1) / numEvents
+    colorLock = True
+    for time in genFloats(start, stop, precision):
+        if colorLock:
+            colorLock = False
+        else:
+            r += dr
+            g += dg
+            b += db
+            a += da
+        if timeToggle:
+            lower = True
+            timeToggle = False
+        else: 
+            lower = False
+            timeToggle = True
+        
+        for prop in range(env.ringLights):
+            if (lower):
+                custom = {"_color" : [r * decrease, g * decrease, b * decrease, a], "_propID" : prop}
+                lower = False
+            else:
+                custom = {"_color" : [r , g, b, a], "_propID" : prop}
+                lower = True
+            event = createLight(time, 1, 1, custom)
+            if event not in diff['_events']:
+                diff['_events'].append(event)
 # End of effects
 if __name__ == "__main__":
     main()
