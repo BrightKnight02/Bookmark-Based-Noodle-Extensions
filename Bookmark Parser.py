@@ -2,19 +2,7 @@ import json
 import sys
 import os
 import math as m
-
-
-
-# Environment Classes --------------------------------------------------------
-class Environment():
-    ringLights = None
-    lasers = None
-    
-class PanicEnvironment(Environment):
-    ringLights = 30
-
-
-# Functions ------------------------------------------------------------------
+import Environments as e
 
 #https://stackoverflow.com/questions/1176136/convert-string-to-python-class-object
 #This takes a str and convert to an object
@@ -63,6 +51,14 @@ def main():
     json.dump(diff, diffFile)
     diffFile.close()
 
+#-----------------------------------------------------------------------------
+# Tool Funtions
+#  These don't directly generate and effect. they are used in many effects 
+#  though. You can call the with bookmarks if you want. I can't guarantee they
+#  will  do anything though
+#-----------------------------------------------------------------------------
+
+#a function that's essentially a better range
 def genFloats(lower, upper, step):
     floats = []
     current = lower
@@ -71,8 +67,8 @@ def genFloats(lower, upper, step):
         current += step
     return floats
 
-#a more general function. if you want to wipe a range of notes, events, or 
-#obstacles. notation /wipeRange end(beats) array(_notes, _events, _obstacles)
+#Removes a range of notes, events, or obstacles. notation 
+#/wipeRange end(beats) array(_notes, _events, _obstacles)
 #I might make this more specific in the future. Like wipe just one event lane
 def wipeRange(lower, upper, array):
     toYeet = [] #I'm very mature
@@ -94,7 +90,27 @@ def createLight(time, typ, value, custom = None):
     if (custom != None):
         event["_customData"] = custom
     return event
-            
+
+#changes the values in colors by change depending on if toggle is true         
+def flutter(colors, change, toggle):
+    if (toggle):
+        for x in colors:
+            x *= change
+        toggle = False
+    else:
+        toggle = True
+    return colors, toggle
+
+#makes sure stuff starts opposite as previous time. It's jank but meh
+def timeCheck(timeToggle):
+    if timeToggle:
+        lower = True
+        timeToggle = False
+    else: 
+        lower = False
+        timeToggle = True
+    return timeToggle, lower
+    
 #-----------------------------------------------------------------------------
 # Effects Block
 #  All functions defined here work to create effects. The name of the function
@@ -116,31 +132,26 @@ def addNoteOnBeats(data):
 def ringShimmer(data):
     start = data[0]
     stop = float(data[1]) + start
+    
     r = float(data[2])
     g = float(data[3])
     b = float(data[4])
+    
     decrease = float(data[5])
     precision = 1 / float(data[6])
-    env = strToClass(data[7])
+    e.env = strToClass(data[7])
     wipeRange(start, stop, diff['_events'])
+    
     timeToggle = True
     for time in genFloats(start, stop, precision):
-        if timeToggle:
-            lower = True
-            timeToggle = False
-        else: 
-            lower = False
-            timeToggle = True
-        for prop in range(env.ringLights):
-            if (lower):
-                custom = {"_color" : [r * decrease, g * decrease, b * decrease], "_propID" : prop}
-                lower = False
-            else:
-                custom = {"_color" : [r , g, b], "_propID" : prop}
-                lower = True
+        
+        timeToggle, lower = timeCheck(timeToggle)
+        
+        for prop in range(e.env.ringLights):
+            colors, lower = flutter([r, g, b], decrease, lower)
+            custom = {"_color" : colors, "_propID" : prop}
             event = createLight(time, 1, 1, custom)
-            if event not in diff['_events']:
-                diff['_events'].append(event)
+            diff['_events'].append(event)
                 
 #Creates a "shimmer" effect that transistions from one color to another
 #event syntax: /gradRingShimmer duration(beats) r1 g1 b1 a1 r2 g2 b2 a2 decrease(decimal) 1/precision environment
@@ -157,7 +168,7 @@ def gradRingShimmer(data):
     a2 = float(data[9])   
     decrease = float(data[10])
     precision = 1 / float(data[11])
-    env = strToClass(data[12])
+    e.env = strToClass(data[12])
     wipeRange(start, stop, diff['_events'])
     timeToggle = True
     numEvents = (stop - start) / precision
@@ -178,23 +189,19 @@ def gradRingShimmer(data):
             g += dg
             b += db
             a += da
-        if timeToggle:
-            lower = True
-            timeToggle = False
-        else: 
-            lower = False
-            timeToggle = True
         
-        for prop in range(env.ringLights):
-            if (lower):
-                custom = {"_color" : [r * decrease, g * decrease, b * decrease, a], "_propID" : prop}
-                lower = False
-            else:
-                custom = {"_color" : [r , g, b, a], "_propID" : prop}
-                lower = True
+            timeToggle, lower = timeCheck(timeToggle)
+        
+        for prop in range(e.env.ringLights):
+            colors, lower = flutter([r, g, b, a], decrease, lower)
+            custom = {"_color" : colors, "_propID" : prop}
             event = createLight(time, 1, 1, custom)
-            if event not in diff['_events']:
-                diff['_events'].append(event)
+            diff['_events'].append(event)
+
+        
+def offsetGrad(data):
+    None
+    
 # End of effects
 if __name__ == "__main__":
     main()
