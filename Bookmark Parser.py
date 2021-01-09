@@ -79,7 +79,7 @@ def main():
 #a function that's essentially a better range
 def genFloats(lower, upper, step):
     floats = []
-    current = round(lower, 4)
+    current = lower
     if (lower <= upper):
         if (step <= 0):
             print("error with step")
@@ -250,19 +250,17 @@ def offsetGrad(data):
         decrease = float(data[10])
     else:
         decrease = None
-    
-    propDirection = []
-    if data[7].strip().lower() == "true":
-        propDirection = [0, env.ringLights, 1]
-    else:
-        propDirection = [env.ringLights - 1, 0, -1]
+       
     timeToggle = False
     print(f"Running 'offsetGrad' from beat {start} to beat {stop}")
     if data[6].strip().lower() == "true":
         timeEaseObject = eval(f"ef.{data[5]}({start}, " +
                               f"{stop}, {env.ringLights})")
-        for prop in range(propDirection[0], propDirection[1], propDirection[2]):
-            easedStop = timeEaseObject.ease(prop)
+        for prop in range(env.ringLights):
+            if data[7].strip().lower() == "true":
+                easedStop = timeEaseObject.ease(env.ringLights - prop)
+            else:
+                easedStop = timeEaseObject.ease(prop)
             if easedStop == start:
                 easedStop += .01
             colors = startColor[:]
@@ -283,12 +281,17 @@ def offsetGrad(data):
     else:
         timeEaseObject = eval(f"ef.{data[5]}({stop}, " +
                               f"{start}, {env.ringLights})")
-        for prop in range(propDirection[0], propDirection[1], propDirection[2]):
+        for prop in range(env.ringLights):
+            if data[7].strip().lower() == "true":
+                easedStart = timeEaseObject.ease(env.ringLights - prop)
+            else:
+                easedStart = timeEaseObject.ease(prop)
             colors = startColor[:]
-            easedStart = timeEaseObject.ease(prop)
             if easedStart == stop:
-                easedStart -= .01
-            for time in genFloats(start, easedStart, precision):
+                stop += .00001
+            else:
+                round(stop, 4)
+            for time in genFloats(easedStart, stop, precision):
                 timeToggle, lower = timeCheck(timeToggle)
                 for x in range(len(colors)):
                     colors[x] = easeValue(data[5], startColor[x], endColor[x], stop - easedStart, time - easedStart)
