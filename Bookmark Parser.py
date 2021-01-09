@@ -79,7 +79,7 @@ def main():
 #a function that's essentially a better range
 def genFloats(lower, upper, step):
     floats = []
-    current = lower
+    current = round(lower, 4)
     if (lower <= upper):
         if (step <= 0):
             print("error with step")
@@ -191,6 +191,7 @@ def wipeTrack(data):
     for x in range(len(toYeet) - 1, 0, -1):
         diff['_events'].pop(toYeet[x])
     print(f"Deleted {len(toYeet)} events")
+
 #Creates a "shimmer" effect. Commonly seen in Jamman's maps
 #event syntax: /ringShimmer duration(beats) red,green,blue decrease(decimal) 1/precision environment
 def ringShimmer(data):
@@ -221,7 +222,7 @@ def gradRingShimmer(data):
     precision = 1 / float(data[5])
     env = strToClass(data[7])
     timeToggle = True
-    colors = startColor
+    colors = startColor[:]
     print(f"Running 'gradRingShimmer' at beat {start} until {stop}")
     for time in genFloats(start, stop, precision):
         timeToggle, lower = timeCheck(timeToggle)
@@ -254,25 +255,23 @@ def offsetGrad(data):
     if data[7].strip().lower() == "true":
         propDirection = [0, env.ringLights, 1]
     else:
-        propDirection = [env.ringLights, 0, -1]
+        propDirection = [env.ringLights - 1, 0, -1]
     timeToggle = False
     print(f"Running 'offsetGrad' from beat {start} to beat {stop}")
     if data[6].strip().lower() == "true":
-        print(startColor, endColor)
         timeEaseObject = eval(f"ef.{data[5]}({start}, " +
                               f"{stop}, {env.ringLights})")
         for prop in range(propDirection[0], propDirection[1], propDirection[2]):
             easedStop = timeEaseObject.ease(prop)
             if easedStop == start:
                 easedStop += .01
-            colors = startColor
-            
+            colors = startColor[:]
             for time in genFloats(start, easedStop, precision):
                 timeToggle, lower = timeCheck(timeToggle)
                 for x in range(len(colors)):
                     colors[x] = easeValue(data[5], startColor[x], endColor[x], easedStop - start, time - start)
                 if decrease == None:
-                    lightColors = colors
+                    lightColors = colors[:]
                     custom = {"_color" : lightColors, "_propID" : prop}
                     event = createLight(time, 1, 1, custom)
                     diff['_events'].append(event)
@@ -281,21 +280,20 @@ def offsetGrad(data):
                     custom = {"_color" : lightColors, "_propID" : prop}
                     event = createLight(time, 1, 1, custom)
                     diff['_events'].append(event)
-         
     else:
         timeEaseObject = eval(f"ef.{data[5]}({stop}, " +
                               f"{start}, {env.ringLights})")
         for prop in range(propDirection[0], propDirection[1], propDirection[2]):
-            colors = startColor
+            colors = startColor[:]
             easedStart = timeEaseObject.ease(prop)
-            if easedStart == start:
-                easedStart += .01
-            for time in genFloats(easedStart, stop, precision):
+            if easedStart == stop:
+                easedStart -= .01
+            for time in genFloats(start, easedStart, precision):
                 timeToggle, lower = timeCheck(timeToggle)
                 for x in range(len(colors)):
                     colors[x] = easeValue(data[5], startColor[x], endColor[x], stop - easedStart, time - easedStart)
                 if decrease == None:
-                    lightColors = colors
+                    lightColors = colors[:]
                     custom = {"_color" : lightColors, "_propID" : prop}
                     event = createLight(time, 1, 1, custom)
                     diff['_events'].append(event)
@@ -304,12 +302,9 @@ def offsetGrad(data):
                     custom = {"_color" : lightColors, "_propID" : prop}
                     event = createLight(time, 1, 1, custom)
                     diff['_events'].append(event)
-    
-    
-            
         
-    
-# End of effects
+# End of effects -------------------------------------------------------------
+
 if __name__ == "__main__":
     main()
     
