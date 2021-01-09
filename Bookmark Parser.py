@@ -2,12 +2,33 @@ import json
 import sys
 import os
 import math as m
-import Environments as e
+import easing_functions as ef
+
+#-----------------------------------------------------------------------------
+# Environment Blocks
+#  Classes that hold the environment prop data or whatever else I learn I need
+#-----------------------------------------------------------------------------
+class Environment():
+    ringLights = None
+    rightLasers = None
+    leftLasers = None
+    
+    
+class PanicEnvironment(Environment):
+    ringLights = 30
+
+#-----------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------
+# Engine Functions
+#  The functions here do the parsing of bookmarks and interpreting 
+#  intrepreting them
+#-----------------------------------------------------------------------------
 
 #https://stackoverflow.com/questions/1176136/convert-string-to-python-class-object
 #This takes a str and convert to an object
 #have to set a variable equal to it then run the variable
-#this may be kinda jank but idc. it works for what I'm doing
+#this may be kinda jank but idc. it works for now
 def strToClass(classname):
     return getattr(sys.modules[__name__], classname)
 
@@ -36,8 +57,6 @@ def getEffectData():
             effectMarks.append(effectMark)
     return effectMarks
             
-    
-
 def main():
     global diff
     #diffFileName = getFile()
@@ -53,23 +72,35 @@ def main():
 
 #-----------------------------------------------------------------------------
 # Tool Funtions
-#  These don't directly generate and effect. they are used in many effects 
-#  though. You can call the with bookmarks if you want. I can't guarantee they
-#  will  do anything though
+#  These don't directly generate and effect. They are used in many effects 
+#  though. You can not call these with bookmarks. It will not work
 #-----------------------------------------------------------------------------
 
 #a function that's essentially a better range
 def genFloats(lower, upper, step):
     floats = []
     current = lower
-    while (current <= upper):
-        floats.append(current)
-        current += step
+    if (lower <= upper):
+        if (step <= 0):
+            print("error with step")
+            print(f'inputs: {lower}, {upper}, {step}')
+            sys.exit()
+        while (current <= upper):
+            floats.append(current)
+            current += step
+    else:
+        if (step >= 0):
+            print("error with step")
+            print(f'inputs: {lower}, {upper}, {step}')
+            sys.exit()
+        while (current >= upper):
+            floats.append(current)
+            current += step  
     return floats
 
-#Removes a range of notes, events, or obstacles. notation 
-#/wipeRange end(beats) array(_notes, _events, _obstacles)
+#Removes a range of notes, events, or obstacles.
 #I might make this more specific in the future. Like wipe just one event lane
+#This function likely will never be bookmark callable
 def wipeRange(lower, upper, array):
     toYeet = [] #I'm very mature
     for x in range(len(array)):
@@ -93,13 +124,12 @@ def createLight(time, typ, value, custom = None):
 
 #changes the values in colors by change depending on if toggle is true         
 def flutter(colors, change, toggle):
-    if (toggle):
-        for x in colors:
-            x *= change
-        toggle = False
-    else:
-        toggle = True
-    return colors, toggle
+    newColor = []
+    for x in colors:
+        if (toggle):
+            x = x * change
+        newColor.append(x)
+    return newColor, not toggle
 
 #makes sure stuff starts opposite as previous time. It's jank but meh
 def timeCheck(timeToggle):
@@ -110,12 +140,25 @@ def timeCheck(timeToggle):
         lower = False
         timeToggle = True
     return timeToggle, lower
+
+#function to convert bookmark color data into usuable values
+def colorParse(raw):
+    raw = raw.split(",")
+    for x in range(len(raw)):
+        raw[x] = float(raw[x])
+    return raw
+
+#Outputs a value based on an easing function 
+#I know eval isn't ideal but why are you intentially hurting your machine
+def easeValue(easing, start, stop, duration, position):
+    easeObject = eval(f"ef.{easing}({start}, {stop}, {duration})")
+    return round(easeObject.ease(position), 3)
     
 #-----------------------------------------------------------------------------
-# Effects Block
-#  All functions defined here work to create effects. The name of the function
-#  must be after the / in your bookmark for the effect to be applied. Yes, 
-#  the command format is just like Minecraft. Fight me
+# Notes Block
+#  All functions defined here work to create note effects. The name of the 
+#  function must be after the / in your bookmark for the effect to be applied. 
+#  Yes, the command format is just like Minecraft. Fight me
 #-----------------------------------------------------------------------------
 
 #test function. 
@@ -127,81 +170,146 @@ def addNoteOnBeats(data):
         if note not in diff['_notes']:
             diff['_notes'].append(note)
 
+#-----------------------------------------------------------------------------
+# Light Block
+#  All functions defined here work to create light effects. 
+#-----------------------------------------------------------------------------
+
+#wips all the lighting events in a certain time in one lighting lane
+# /wipeGroup duration(beats) lightGroup
+def wipeTrack(data):
+    start = data[0]
+    stop = float(data[1]) + start
+    group = int(data[2])
+    toYeet = []
+    print(f"Running 'wipeTrack' at beat {start} until {stop}. Deleting _type {group}")
+    for x in range(len(diff['_events'])):
+        if (diff['_events'][x]['_time'] <= stop and 
+            diff['_events'][x]['_time'] >= start
+            and diff['_events'][x]['_type'] == group):
+            toYeet.append(x)
+    for x in range(len(toYeet) - 1, 0, -1):
+        diff['_events'].pop(toYeet[x])
+    print(f"Deleted {len(toYeet)} events")
 #Creates a "shimmer" effect. Commonly seen in Jamman's maps
-#event syntax: /ringShimmer duration(beats) red green blue decrease(decimal) 1/precision environment
+#event syntax: /ringShimmer duration(beats) red,green,blue decrease(decimal) 1/precision environment
 def ringShimmer(data):
     start = data[0]
     stop = float(data[1]) + start
-    
-    r = float(data[2])
-    g = float(data[3])
-    b = float(data[4])
-    
-    decrease = float(data[5])
-    precision = 1 / float(data[6])
-    e.env = strToClass(data[7])
-    wipeRange(start, stop, diff['_events'])
-    
+    colors = colorParse(data[2])
+    decrease = float(data[3])
+    precision = 1 / float(data[4])
+    env = strToClass(data[5])
     timeToggle = True
-    for time in genFloats(start, stop, precision):
-        
-        timeToggle, lower = timeCheck(timeToggle)
-        
-        for prop in range(e.env.ringLights):
-            colors, lower = flutter([r, g, b], decrease, lower)
-            custom = {"_color" : colors, "_propID" : prop}
+    print(f"Running 'ringShimmer' at beat {start} until {stop}")
+    for time in genFloats(start, stop, precision): 
+        timeToggle, lower = timeCheck(timeToggle) 
+        for prop in range(env.ringLights):
+            lightColors, lower = flutter(colors, decrease, lower)
+            custom = {"_color" : lightColors, "_propID" : prop}
             event = createLight(time, 1, 1, custom)
             diff['_events'].append(event)
                 
 #Creates a "shimmer" effect that transistions from one color to another
-#event syntax: /gradRingShimmer duration(beats) r1 g1 b1 a1 r2 g2 b2 a2 decrease(decimal) 1/precision environment
+#event syntax: /gradRingShimmer duration(beats) r1,g1,b1,a1 r2,g2,b2,a2 decrease(decimal) 1/precision easing environment
 def gradRingShimmer(data):
     start = data[0]
     stop = float(data[1]) + start
-    r1 = float(data[2])
-    g1 = float(data[3])
-    b1 = float(data[4])
-    a1 = float(data[5])
-    r2 = float(data[6])
-    g2 = float(data[7])
-    b2 = float(data[8])
-    a2 = float(data[9])   
-    decrease = float(data[10])
-    precision = 1 / float(data[11])
-    e.env = strToClass(data[12])
-    wipeRange(start, stop, diff['_events'])
+    startColor = colorParse(data[2])
+    endColor = colorParse(data[3])  
+    decrease = float(data[4])
+    precision = 1 / float(data[5])
+    env = strToClass(data[7])
     timeToggle = True
-    numEvents = (stop - start) / precision
-    r = r1
-    g = g1
-    b = b1
-    a = a1
-    dr = (r2 - r1) / numEvents
-    dg = (g2 - g1) / numEvents
-    db = (b2 - b1) / numEvents
-    da = (a2 - a1) / numEvents
-    colorLock = True
+    colors = startColor
+    print(f"Running 'gradRingShimmer' at beat {start} until {stop}")
     for time in genFloats(start, stop, precision):
-        if colorLock:
-            colorLock = False
-        else:
-            r += dr
-            g += dg
-            b += db
-            a += da
+        timeToggle, lower = timeCheck(timeToggle)
+        for x in range(len(colors)):
+            colors[x] = easeValue(data[6], startColor[x], 
+                                  endColor[x], stop - start, time - start)
         
-            timeToggle, lower = timeCheck(timeToggle)
-        
-        for prop in range(e.env.ringLights):
-            colors, lower = flutter([r, g, b, a], decrease, lower)
-            custom = {"_color" : colors, "_propID" : prop}
+        for prop in range(env.ringLights):
+            lightColors, lower = flutter(colors, decrease, lower)
+            custom = {"_color" : lightColors, "_propID" : prop}
             event = createLight(time, 1, 1, custom)
             diff['_events'].append(event)
 
-        
+#Generates a ring prop gradient that slides down the prop. Basically, the 
+# gradient starts later in each prop
+#notation /offsetGrad duration r1,g1,b1,a1 r2,g2,b2,a2 1/precision easing timeDirection(bool) propDirection(bool) environment flutter(bool) decrease
 def offsetGrad(data):
-    None
+    start = data[0]
+    stop = float(data[1]) + start
+    startColor = colorParse(data[2])
+    endColor = colorParse(data[3])
+    precision = 1 / float(data[4])
+    env = strToClass(data[8])
+    if len(data) > 9:
+        decrease = float(data[10])
+    else:
+        decrease = None
+    
+    propDirection = []
+    if data[7].strip().lower() == "true":
+        propDirection = [0, env.ringLights, 1]
+    else:
+        propDirection = [env.ringLights, 0, -1]
+    timeToggle = False
+    print(f"Running 'offsetGrad' from beat {start} to beat {stop}")
+    if data[6].strip().lower() == "true":
+        print(startColor, endColor)
+        timeEaseObject = eval(f"ef.{data[5]}({start}, " +
+                              f"{stop}, {env.ringLights})")
+        for prop in range(propDirection[0], propDirection[1], propDirection[2]):
+            easedStop = timeEaseObject.ease(prop)
+            if easedStop == start:
+                easedStop += .01
+            colors = startColor
+            
+            for time in genFloats(start, easedStop, precision):
+                timeToggle, lower = timeCheck(timeToggle)
+                for x in range(len(colors)):
+                    colors[x] = easeValue(data[5], startColor[x], endColor[x], easedStop - start, time - start)
+                if decrease == None:
+                    lightColors = colors
+                    custom = {"_color" : lightColors, "_propID" : prop}
+                    event = createLight(time, 1, 1, custom)
+                    diff['_events'].append(event)
+                else:
+                    lightColors, lower = flutter(colors, decrease, lower)
+                    custom = {"_color" : lightColors, "_propID" : prop}
+                    event = createLight(time, 1, 1, custom)
+                    diff['_events'].append(event)
+         
+    else:
+        timeEaseObject = eval(f"ef.{data[5]}({stop}, " +
+                              f"{start}, {env.ringLights})")
+        for prop in range(propDirection[0], propDirection[1], propDirection[2]):
+            colors = startColor
+            easedStart = timeEaseObject.ease(prop)
+            if easedStart == start:
+                easedStart += .01
+            for time in genFloats(easedStart, stop, precision):
+                timeToggle, lower = timeCheck(timeToggle)
+                for x in range(len(colors)):
+                    colors[x] = easeValue(data[5], startColor[x], endColor[x], stop - easedStart, time - easedStart)
+                if decrease == None:
+                    lightColors = colors
+                    custom = {"_color" : lightColors, "_propID" : prop}
+                    event = createLight(time, 1, 1, custom)
+                    diff['_events'].append(event)
+                else:
+                    lightColors, lower = flutter(colors, decrease, lower)
+                    custom = {"_color" : lightColors, "_propID" : prop}
+                    event = createLight(time, 1, 1, custom)
+                    diff['_events'].append(event)
+    
+    
+            
+        
     
 # End of effects
 if __name__ == "__main__":
     main()
+    
